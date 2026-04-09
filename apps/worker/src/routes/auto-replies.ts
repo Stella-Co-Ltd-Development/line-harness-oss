@@ -8,6 +8,7 @@ import {
 } from '@line-crm/db';
 import type { AutoReply as DbAutoReply } from '@line-crm/db';
 import type { Env } from '../index.js';
+import { requireRole } from '../middleware/role-guard.js';
 
 const autoReplies = new Hono<Env>();
 
@@ -52,7 +53,7 @@ autoReplies.get('/api/auto-replies/:id', async (c) => {
 });
 
 // POST /api/auto-replies — create
-autoReplies.post('/api/auto-replies', async (c) => {
+autoReplies.post('/api/auto-replies', requireRole('owner', 'admin'), async (c) => {
   try {
     const body = await c.req.json<{
       keyword: string;
@@ -85,7 +86,7 @@ autoReplies.post('/api/auto-replies', async (c) => {
 });
 
 // PUT /api/auto-replies/:id — update
-autoReplies.put('/api/auto-replies/:id', async (c) => {
+autoReplies.put('/api/auto-replies/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const body = await c.req.json<{
@@ -119,7 +120,7 @@ autoReplies.put('/api/auto-replies/:id', async (c) => {
 });
 
 // DELETE /api/auto-replies/:id
-autoReplies.delete('/api/auto-replies/:id', async (c) => {
+autoReplies.delete('/api/auto-replies/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const item = await getAutoReplyById(c.env.DB, id);

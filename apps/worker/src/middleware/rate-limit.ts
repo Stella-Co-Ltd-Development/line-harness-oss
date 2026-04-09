@@ -65,6 +65,10 @@ function check(key: string, max: number, windowMs: number): { ok: boolean; remai
 const UNAUTHENTICATED_PATTERNS: Array<string | RegExp> = [
   '/webhook',
   /^\/api\/forms\/[^/]+\/submit$/,
+  /^\/api\/liff\//,
+  '/api/meet-callback',
+  '/api/integrations/stripe/webhook',
+  /^\/api\/webhooks\/incoming\/[^/]+\/receive$/,
 ];
 
 function isUnauthenticatedPath(path: string): boolean {
@@ -89,7 +93,9 @@ function getClientIp(c: Context): string {
 const AUTHENTICATED_MAX = 1000;
 const AUTHENTICATED_WINDOW = 60_000; // 1 min
 
-const UNAUTHENTICATED_MAX = 100;
+// NOTE: This in-memory rate limiter is per-isolate and resets on cold start.
+// For production, consider migrating to Cloudflare Rate Limiting API or Durable Objects.
+const UNAUTHENTICATED_MAX = 30;
 const UNAUTHENTICATED_WINDOW = 60_000; // 1 min
 
 export async function rateLimitMiddleware(c: Context<Env>, next: Next): Promise<Response | void> {

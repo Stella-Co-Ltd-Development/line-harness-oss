@@ -3,7 +3,13 @@ import type { Env } from '../index.js';
 
 const setup = new Hono<Env>();
 
-setup.get('/setup', (c) => {
+setup.get('/setup', async (c) => {
+  // Disable setup page if initial setup is already completed
+  const hasStaff = await c.env.DB.prepare('SELECT 1 FROM staff_members LIMIT 1').first();
+  if (hasStaff) {
+    return c.json({ success: false, error: 'Setup already completed' }, 404);
+  }
+
   return c.html(`<!DOCTYPE html>
 <html lang="ja">
 <head>

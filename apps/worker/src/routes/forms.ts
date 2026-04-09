@@ -14,6 +14,7 @@ import { addTagToFriend, enrollFriendInScenario } from '@line-crm/db';
 import type { Form as DbForm, FormSubmission as DbFormSubmission } from '@line-crm/db';
 import type { Env } from '../index.js';
 import { isUrlSafe } from '../utils/url-validator.js';
+import { requireRole } from '../middleware/role-guard.js';
 
 const forms = new Hono<Env>();
 
@@ -29,6 +30,26 @@ function serializeForm(row: DbForm) {
     onSubmitMessageContent: row.on_submit_message_content,
     onSubmitWebhookUrl: row.on_submit_webhook_url,
     onSubmitWebhookHeaders: row.on_submit_webhook_headers,
+    onSubmitWebhookFailMessage: row.on_submit_webhook_fail_message,
+    saveToMetadata: Boolean(row.save_to_metadata),
+    isActive: Boolean(row.is_active),
+    submitCount: row.submit_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Public serializer — omits webhook URL/headers to prevent credential leakage */
+function serializeFormPublic(row: DbForm) {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    fields: JSON.parse(row.fields || '[]') as unknown[],
+    onSubmitTagId: row.on_submit_tag_id,
+    onSubmitScenarioId: row.on_submit_scenario_id,
+    onSubmitMessageType: row.on_submit_message_type,
+    onSubmitMessageContent: row.on_submit_message_content,
     onSubmitWebhookFailMessage: row.on_submit_webhook_fail_message,
     saveToMetadata: Boolean(row.save_to_metadata),
     isActive: Boolean(row.is_active),
@@ -68,15 +89,10 @@ forms.get('/api/forms/:id', async (c) => {
     if (!form) {
       return c.json({ success: false, error: 'Form not found' }, 404);
     }
-    // 未認証リクエスト（公開フォーム表示）ではadmin専用フィールドを除外してセキュリティ情報漏洩を防ぐ
+    // 未認証リクエスト（公開フォーム表示）ではwebhook関連フィールドを除外
     const staff = c.get('staff');
-    const serialized = serializeForm(form);
-    if (!staff) {
-      delete (serialized as any).onSubmitWebhookUrl;
-      delete (serialized as any).onSubmitWebhookHeaders;
-      delete (serialized as any).onSubmitWebhookFailMessage;
-    }
-    return c.json({ success: true, data: serialized });
+    const data = staff ? serializeForm(form) : serializeFormPublic(form);
+    return c.json({ success: true, data });
   } catch (err) {
     console.error('GET /api/forms/:id error:', err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
@@ -84,7 +100,7 @@ forms.get('/api/forms/:id', async (c) => {
 });
 
 // POST /api/forms — create form
-forms.post('/api/forms', async (c) => {
+forms.post('/api/forms', requireRole('owner', 'admin'), async (c) => {
   try {
     const body = await c.req.json<{
       name: string;
@@ -126,7 +142,7 @@ forms.post('/api/forms', async (c) => {
 });
 
 // PUT /api/forms/:id — update form
-forms.put('/api/forms/:id', async (c) => {
+forms.put('/api/forms/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const body = await c.req.json<{
@@ -173,7 +189,7 @@ forms.put('/api/forms/:id', async (c) => {
 });
 
 // DELETE /api/forms/:id
-forms.delete('/api/forms/:id', async (c) => {
+forms.delete('/api/forms/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const form = await getFormById(c.env.DB, id);
@@ -219,12 +235,34 @@ forms.post('/api/forms/:id/submit', async (c) => {
     const body = await c.req.json<{
       lineUserId?: string;
       friendId?: string;
+      idToken?: string;
       data?: Record<string, unknown>;
       _skipWebhook?: boolean;
       trackedLinkId?: string;
     }>();
 
     const submissionData = body.data ?? {};
+
+    // Verify lineUserId ownership via LINE ID token when provided
+    if (body.lineUserId) {
+      if (!body.idToken) {
+        return c.json({ success: false, error: 'idToken is required when lineUserId is provided' }, 401);
+      }
+      const channelId = c.env.LINE_LOGIN_CHANNEL_ID || c.env.LINE_CHANNEL_ID;
+      const verifyRes = await fetch('https://api.line.me/oauth2/v2.1/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ id_token: body.idToken, client_id: channelId }),
+      });
+      if (verifyRes.ok) {
+        const payload = await verifyRes.json() as { sub?: string };
+        if (payload.sub !== body.lineUserId) {
+          return c.json({ success: false, error: 'ID token does not match lineUserId' }, 403);
+        }
+      } else {
+        return c.json({ success: false, error: 'Invalid ID token' }, 401);
+      }
+    }
 
     // Validate required fields
     const fields = JSON.parse(form.fields || '[]') as Array<{

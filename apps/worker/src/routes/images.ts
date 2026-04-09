@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import type { Env } from '../index.js';
+import { requireRole } from '../middleware/role-guard.js';
 
 const images = new Hono<Env>();
 
 // POST /api/images — upload image (base64 or binary)
-images.post('/api/images', async (c) => {
+images.post('/api/images', requireRole('owner', 'admin'), async (c) => {
   try {
     const contentType = c.req.header('Content-Type') || '';
 
@@ -75,6 +76,12 @@ images.post('/api/images', async (c) => {
 // GET /images/:key — serve image (public, no auth)
 images.get('/images/:key', async (c) => {
   const key = c.req.param('key');
+
+  // Validate key format: UUID.extension only (prevent path traversal)
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|gif|webp)$/.test(key)) {
+    return c.json({ success: false, error: 'Invalid image key' }, 400);
+  }
+
   const object = await c.env.IMAGES.get(key);
 
   if (!object) {
@@ -90,7 +97,7 @@ images.get('/images/:key', async (c) => {
 });
 
 // DELETE /api/images/:key — delete image
-images.delete('/api/images/:key', async (c) => {
+images.delete('/api/images/:key', requireRole('owner', 'admin'), async (c) => {
   try {
     const key = c.req.param('key');
     await c.env.IMAGES.delete(key);

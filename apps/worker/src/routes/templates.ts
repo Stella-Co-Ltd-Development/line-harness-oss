@@ -7,6 +7,7 @@ import {
   deleteTemplate,
 } from '@line-crm/db';
 import type { Env } from '../index.js';
+import { requireRole } from '../middleware/role-guard.js';
 
 const templates = new Hono<Env>();
 
@@ -46,7 +47,7 @@ templates.get('/api/templates/:id', async (c) => {
   }
 });
 
-templates.post('/api/templates', async (c) => {
+templates.post('/api/templates', requireRole('owner', 'admin'), async (c) => {
   try {
     const body = await c.req.json<{ name: string; category?: string; messageType: string; messageContent: string }>();
     if (!body.name || !body.messageType || !body.messageContent) {
@@ -60,7 +61,7 @@ templates.post('/api/templates', async (c) => {
   }
 });
 
-templates.put('/api/templates/:id', async (c) => {
+templates.put('/api/templates/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const body = await c.req.json();
@@ -77,7 +78,7 @@ templates.put('/api/templates/:id', async (c) => {
   }
 });
 
-templates.delete('/api/templates/:id', async (c) => {
+templates.delete('/api/templates/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     await deleteTemplate(c.env.DB, c.req.param('id'));
     return c.json({ success: true, data: null });

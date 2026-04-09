@@ -20,6 +20,7 @@ import type {
   MessageType,
 } from '@line-crm/db';
 import type { Env } from '../index.js';
+import { requireRole } from '../middleware/role-guard.js';
 
 const scenarios = new Hono<Env>();
 
@@ -125,7 +126,7 @@ scenarios.get('/api/scenarios/:id', async (c) => {
 });
 
 // POST /api/scenarios - create
-scenarios.post('/api/scenarios', async (c) => {
+scenarios.post('/api/scenarios', requireRole('owner', 'admin'), async (c) => {
   try {
     const body = await c.req.json<{
       name: string;
@@ -167,7 +168,7 @@ scenarios.post('/api/scenarios', async (c) => {
 });
 
 // PUT /api/scenarios/:id - update (accepts camelCase fields from clients)
-scenarios.put('/api/scenarios/:id', async (c) => {
+scenarios.put('/api/scenarios/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const body = await c.req.json<{
@@ -198,7 +199,7 @@ scenarios.put('/api/scenarios/:id', async (c) => {
 });
 
 // DELETE /api/scenarios/:id - delete
-scenarios.delete('/api/scenarios/:id', async (c) => {
+scenarios.delete('/api/scenarios/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     await deleteScenario(c.env.DB, id);
@@ -210,7 +211,7 @@ scenarios.delete('/api/scenarios/:id', async (c) => {
 });
 
 // POST /api/scenarios/:id/steps - add step
-scenarios.post('/api/scenarios/:id/steps', async (c) => {
+scenarios.post('/api/scenarios/:id/steps', requireRole('owner', 'admin'), async (c) => {
   try {
     const scenarioId = c.req.param('id');
     const body = await c.req.json<{
@@ -249,7 +250,7 @@ scenarios.post('/api/scenarios/:id/steps', async (c) => {
 });
 
 // PUT /api/scenarios/:id/steps/:stepId - update step (accepts camelCase)
-scenarios.put('/api/scenarios/:id/steps/:stepId', async (c) => {
+scenarios.put('/api/scenarios/:id/steps/:stepId', requireRole('owner', 'admin'), async (c) => {
   try {
     const stepId = c.req.param('stepId');
     const body = await c.req.json<{
@@ -284,7 +285,7 @@ scenarios.put('/api/scenarios/:id/steps/:stepId', async (c) => {
 });
 
 // DELETE /api/scenarios/:id/steps/:stepId - delete step
-scenarios.delete('/api/scenarios/:id/steps/:stepId', async (c) => {
+scenarios.delete('/api/scenarios/:id/steps/:stepId', requireRole('owner', 'admin'), async (c) => {
   try {
     const stepId = c.req.param('stepId');
     await deleteScenarioStep(c.env.DB, stepId);
@@ -296,7 +297,7 @@ scenarios.delete('/api/scenarios/:id/steps/:stepId', async (c) => {
 });
 
 // POST /api/scenarios/:id/enroll/:friendId - manually enroll friend
-scenarios.post('/api/scenarios/:id/enroll/:friendId', async (c) => {
+scenarios.post('/api/scenarios/:id/enroll/:friendId', requireRole('owner', 'admin'), async (c) => {
   try {
     const scenarioId = c.req.param('id');
     const friendId = c.req.param('friendId');

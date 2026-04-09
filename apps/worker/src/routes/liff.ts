@@ -759,12 +759,32 @@ liffRoutes.get('/api/liff/config', async (c) => {
 
 // ─── Existing LIFF endpoints ────────────────────────────────────
 
-// POST /api/liff/profile - get friend by LINE userId (public, no auth)
+// POST /api/liff/profile - get friend by LINE userId (requires idToken for verification)
 liffRoutes.post('/api/liff/profile', async (c) => {
   try {
-    const body = await c.req.json<{ lineUserId: string }>();
+    const body = await c.req.json<{ lineUserId: string; idToken?: string }>();
     if (!body.lineUserId) {
       return c.json({ success: false, error: 'lineUserId is required' }, 400);
+    }
+
+    // Verify LINE ID token to prevent enumeration attacks
+    if (body.idToken) {
+      const channelId = c.env.LINE_LOGIN_CHANNEL_ID || c.env.LINE_CHANNEL_ID;
+      const verifyRes = await fetch('https://api.line.me/oauth2/v2.1/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ id_token: body.idToken, client_id: channelId }),
+      });
+      if (verifyRes.ok) {
+        const payload = await verifyRes.json() as { sub?: string };
+        if (payload.sub !== body.lineUserId) {
+          return c.json({ success: false, error: 'ID token does not match lineUserId' }, 403);
+        }
+      } else {
+        return c.json({ success: false, error: 'Invalid ID token' }, 401);
+      }
+    } else {
+      return c.json({ success: false, error: 'idToken is required for verification' }, 401);
     }
 
     const friend = await getFriendByLineUserId(c.env.DB, body.lineUserId);
