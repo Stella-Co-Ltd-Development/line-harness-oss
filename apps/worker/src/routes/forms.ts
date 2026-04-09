@@ -13,6 +13,7 @@ import { getFriendByLineUserId, getFriendById } from '@line-crm/db';
 import { addTagToFriend, enrollFriendInScenario } from '@line-crm/db';
 import type { Form as DbForm, FormSubmission as DbFormSubmission } from '@line-crm/db';
 import type { Env } from '../index.js';
+import { isUrlSafe } from '../utils/url-validator.js';
 
 const forms = new Hono<Env>();
 
@@ -67,7 +68,15 @@ forms.get('/api/forms/:id', async (c) => {
     if (!form) {
       return c.json({ success: false, error: 'Form not found' }, 404);
     }
-    return c.json({ success: true, data: serializeForm(form) });
+    // 未認証リクエスト（公開フォーム表示）ではadmin専用フィールドを除外してセキュリティ情報漏洩を防ぐ
+    const staff = c.get('staff');
+    const serialized = serializeForm(form);
+    if (!staff) {
+      delete (serialized as any).onSubmitWebhookUrl;
+      delete (serialized as any).onSubmitWebhookHeaders;
+      delete (serialized as any).onSubmitWebhookFailMessage;
+    }
+    return c.json({ success: true, data: serialized });
   } catch (err) {
     console.error('GET /api/forms/:id error:', err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
@@ -248,7 +257,9 @@ forms.post('/api/forms/:id/submit', async (c) => {
 
     // Webhook gate — skip if client pre-verified via repliers endpoint
     delete submissionData._webhookVerified;
-    const skipWebhook = Boolean(body._skipWebhook);
+    // _skipWebhookは認証済みスタッフのみ使用可能（公開APIからの悪用を防ぐ）
+    const staff = c.get('staff');
+    const skipWebhook = staff ? Boolean(body._skipWebhook) : false;
     delete submissionData._skipWebhook;
     let webhookData: Record<string, unknown> | null = null;
     if (form.on_submit_webhook_url && !skipWebhook) {
@@ -523,6 +534,8 @@ async function callFormWebhook(
         Object.assign(headers, parsed);
       } catch { /* ignore invalid headers */ }
     }
+
+    if (!isUrlSafe(url)) { return { passed: false, data: { error: 'Webhook URL blocked by security policy' } }; }
 
     // Determine method: GET if URL has {placeholders} replaced, POST otherwise
     const isGet = form.on_submit_webhook_url.includes('{');

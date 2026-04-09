@@ -21,6 +21,14 @@ app.post('/api/meet-callback', async (c) => {
     completed_at: string;
   }>();
 
+  const meetSecret = (c.env as unknown as Record<string, string | undefined>).MEET_CALLBACK_SECRET;
+  if (meetSecret) {
+    const authHeader = c.req.header('Authorization') ?? '';
+    if (authHeader !== `Bearer ${meetSecret}`) {
+      return c.json({ success: false, error: 'Unauthorized' }, 401);
+    }
+  }
+
   if (!body.line_user_id) {
     return c.json({ success: false, error: 'line_user_id required' }, 400);
   }

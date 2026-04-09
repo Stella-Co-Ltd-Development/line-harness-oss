@@ -11,7 +11,9 @@ import {
   updateOutgoingWebhook,
   deleteOutgoingWebhook,
 } from '@line-crm/db';
+import { requireRole } from '../middleware/role-guard.js';
 import type { Env } from '../index.js';
+import { timingSafeEqual } from '../utils/timing-safe.js';
 
 const webhooks = new Hono<Env>();
 
@@ -26,7 +28,7 @@ webhooks.get('/api/webhooks/incoming', async (c) => {
         id: w.id,
         name: w.name,
         sourceType: w.source_type,
-        secret: w.secret,
+        secret: w.secret ? '****' + w.secret.slice(-4) : null,
         isActive: Boolean(w.is_active),
         createdAt: w.created_at,
         updatedAt: w.updated_at,
@@ -38,7 +40,7 @@ webhooks.get('/api/webhooks/incoming', async (c) => {
   }
 });
 
-webhooks.post('/api/webhooks/incoming', async (c) => {
+webhooks.post('/api/webhooks/incoming', requireRole('owner', 'admin'), async (c) => {
   try {
     const body = await c.req.json<{ name: string; sourceType?: string; secret?: string }>();
     if (!body.name) return c.json({ success: false, error: 'name is required' }, 400);
@@ -50,7 +52,7 @@ webhooks.post('/api/webhooks/incoming', async (c) => {
   }
 });
 
-webhooks.put('/api/webhooks/incoming/:id', async (c) => {
+webhooks.put('/api/webhooks/incoming/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const body = await c.req.json();
@@ -64,7 +66,7 @@ webhooks.put('/api/webhooks/incoming/:id', async (c) => {
   }
 });
 
-webhooks.delete('/api/webhooks/incoming/:id', async (c) => {
+webhooks.delete('/api/webhooks/incoming/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     await deleteIncomingWebhook(c.env.DB, c.req.param('id'));
     return c.json({ success: true, data: null });
@@ -86,7 +88,7 @@ webhooks.get('/api/webhooks/outgoing', async (c) => {
         name: w.name,
         url: w.url,
         eventTypes: JSON.parse(w.event_types),
-        secret: w.secret,
+        secret: w.secret ? '****' + w.secret.slice(-4) : null,
         isActive: Boolean(w.is_active),
         createdAt: w.created_at,
         updatedAt: w.updated_at,
@@ -98,7 +100,7 @@ webhooks.get('/api/webhooks/outgoing', async (c) => {
   }
 });
 
-webhooks.post('/api/webhooks/outgoing', async (c) => {
+webhooks.post('/api/webhooks/outgoing', requireRole('owner', 'admin'), async (c) => {
   try {
     const body = await c.req.json<{ name: string; url: string; eventTypes: string[]; secret?: string }>();
     if (!body.name || !body.url) return c.json({ success: false, error: 'name and url are required' }, 400);
@@ -113,7 +115,7 @@ webhooks.post('/api/webhooks/outgoing', async (c) => {
   }
 });
 
-webhooks.put('/api/webhooks/outgoing/:id', async (c) => {
+webhooks.put('/api/webhooks/outgoing/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const body = await c.req.json();
@@ -127,7 +129,7 @@ webhooks.put('/api/webhooks/outgoing/:id', async (c) => {
   }
 });
 
-webhooks.delete('/api/webhooks/outgoing/:id', async (c) => {
+webhooks.delete('/api/webhooks/outgoing/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     await deleteOutgoingWebhook(c.env.DB, c.req.param('id'));
     return c.json({ success: true, data: null });
@@ -144,6 +146,13 @@ webhooks.post('/api/webhooks/incoming/:id/receive', async (c) => {
     const id = c.req.param('id');
     const wh = await getIncomingWebhookById(c.env.DB, id);
     if (!wh || !wh.is_active) return c.json({ success: false, error: 'Webhook not found or inactive' }, 404);
+
+    if (wh.secret) {
+      const provided = c.req.header('X-Webhook-Secret') ?? '';
+      if (!timingSafeEqual(provided, wh.secret)) {
+        return c.json({ success: false, error: 'Unauthorized' }, 401);
+      }
+    }
 
     const body = await c.req.json();
 

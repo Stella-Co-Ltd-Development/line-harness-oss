@@ -9,6 +9,7 @@ import {
   getFriendScoreHistory,
   addScore,
 } from '@line-crm/db';
+import { requireRole } from '../middleware/role-guard.js';
 import type { Env } from '../index.js';
 
 const scoring = new Hono<Env>();
@@ -50,7 +51,7 @@ scoring.get('/api/scoring-rules/:id', async (c) => {
   }
 });
 
-scoring.post('/api/scoring-rules', async (c) => {
+scoring.post('/api/scoring-rules', requireRole('owner', 'admin'), async (c) => {
   try {
     const body = await c.req.json<{ name: string; eventType: string; scoreValue: number }>();
     if (!body.name || !body.eventType || body.scoreValue === undefined) {
@@ -64,7 +65,7 @@ scoring.post('/api/scoring-rules', async (c) => {
   }
 });
 
-scoring.put('/api/scoring-rules/:id', async (c) => {
+scoring.put('/api/scoring-rules/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const body = await c.req.json();
@@ -78,7 +79,7 @@ scoring.put('/api/scoring-rules/:id', async (c) => {
   }
 });
 
-scoring.delete('/api/scoring-rules/:id', async (c) => {
+scoring.delete('/api/scoring-rules/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     await deleteScoringRule(c.env.DB, c.req.param('id'));
     return c.json({ success: true, data: null });
@@ -118,7 +119,7 @@ scoring.get('/api/friends/:id/score', async (c) => {
 });
 
 // 手動スコア加算
-scoring.post('/api/friends/:id/score', async (c) => {
+scoring.post('/api/friends/:id/score', requireRole('owner', 'admin'), async (c) => {
   try {
     const friendId = c.req.param('id');
     const body = await c.req.json<{ scoreChange: number; reason?: string }>();

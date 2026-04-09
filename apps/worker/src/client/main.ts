@@ -86,6 +86,18 @@ function saveUuid(uuid: string): void {
   }
 }
 
+
+
+function isSafeRedirect(url: string): boolean {
+  try {
+    const target = new URL(url, window.location.origin);
+    if (target.origin === window.location.origin) return true;
+    if (target.hostname === 'liff.line.me') return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
 function escapeHtml(str: string): string {
   const div = document.createElement('div');
   div.textContent = str;

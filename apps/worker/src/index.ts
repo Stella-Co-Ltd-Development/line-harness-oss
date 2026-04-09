@@ -58,6 +58,8 @@ export type Env = {
     LINE_LOGIN_CHANNEL_SECRET: string;
     WORKER_URL: string;
     X_HARNESS_URL?: string;  // Optional: X Harness API URL for account linking
+    ALLOWED_ORIGINS?: string;
+    MEET_CALLBACK_SECRET?: string;
   };
   Variables: {
     staff: { id: string; name: string; role: 'owner' | 'admin' | 'staff' };
@@ -66,8 +68,23 @@ export type Env = {
 
 const app = new Hono<Env>();
 
+// セキュリティヘッダー — すべてのレスポンスにセキュリティ関連ヘッダーを付与
+app.use('*', async (c, next) => {
+  await next();
+  c.res.headers.set('X-Content-Type-Options', 'nosniff');
+  c.res.headers.set('X-Frame-Options', 'DENY');
+  c.res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  c.res.headers.set('X-XSS-Protection', '1; mode=block');
+});
+
 // CORS — allow all origins for MVP
-app.use('*', cors({ origin: '*' }));
+app.use('*', cors({
+  origin: (origin, c) => {
+    const allowed = (c.env as any).ALLOWED_ORIGINS?.split(',').map((s: string) => s.trim()).filter(Boolean);
+    if (!allowed?.length) return origin;
+    return allowed.includes(origin) ? origin : '';
+  },
+}));
 
 // Rate limiting — runs before auth to block abuse early
 app.use('*', rateLimitMiddleware);
@@ -126,6 +143,11 @@ app.get('/api/qr', async (c) => {
     },
   });
 });
+
+// XSS対策: HTML属性内に埋め込む文字列をエスケープするヘルパー関数
+function escapeForHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;');
+}
 
 // Short link: /r/:ref → landing page with LINE open button
 // Supports query params: ?form=FORM_ID (auto-push form after friend add)
@@ -224,7 +246,7 @@ body{font-family:'Hiragino Sans','Helvetica Neue',system-ui,sans-serif;backgroun
 <li>移動先のページで「LINE で開く」をタップ</li>
 </ol>
 </div>
-<a href="${liffTarget}" class="btn">このまま LINE を開く</a>
+<a href="${escapeForHtml(liffTarget)}" class="btn">このまま LINE を開く</a>
 <p class="footer">友だち追加で全機能を無料体験できます</p>
 </div>
 </body>
@@ -260,8 +282,8 @@ body{font-family:'Hiragino Sans','Helvetica Neue',system-ui,sans-serif;backgroun
 <svg viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="12" fill="#06C755"/><path d="M24 12C17.37 12 12 16.58 12 22.2c0 3.54 2.35 6.65 5.86 8.47-.2.74-.76 2.75-.87 3.17-.14.55.2.54.42.39.18-.12 2.84-1.88 4-2.65.84.13 1.7.22 2.59.22 6.63 0 12-4.58 12-10.2S30.63 12 24 12z" fill="#fff"/></svg>
 </div>
 <p class="msg">LINE アプリで開きます</p>
-<a href="${liffTarget}" class="btn">LINE で開く</a>
-<p class="fallback">開かない場合は<a href="${authFallback}">こちら</a></p>
+<a href="${escapeForHtml(liffTarget)}" class="btn">LINE で開く</a>
+<p class="fallback">開かない場合は<a href="${escapeForHtml(authFallback)}">こちら</a></p>
 <p class="footer">友だち追加で全機能を無料体験できます</p>
 </div>
 </body>

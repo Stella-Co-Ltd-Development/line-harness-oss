@@ -195,13 +195,26 @@ function getAndroidPackage(url: string): string | null {
 }
 
 function buildAppRedirectHtml(destinationUrl: string): string {
-  const escaped = destinationUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  // JSON.stringifyはJSコンテキスト用（クォートを含む完全なJS文字列リテラルを生成）
+  const jsonEscaped = JSON.stringify(destinationUrl);
+  // HTMLコンテキスト用：属性値・HTMLテキスト内でのエスケープ
+  const htmlEscaped = destinationUrl
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/'/g, '&#39;');
   const androidPackage = getAndroidPackage(destinationUrl);
   // intent://path#Intent;scheme=https;package=com.xxx;S.browser_fallback_url=https://...;end
   const intentUrl = androidPackage
     ? `intent://${destinationUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=${androidPackage};S.browser_fallback_url=${encodeURIComponent(destinationUrl)};end`
     : null;
-  const intentEscaped = intentUrl ? intentUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;') : '';
+  // JSON.stringifyでJSコンテキスト用エスケープ
+  const intentJsonEscaped = intentUrl ? JSON.stringify(intentUrl) : '""';
+  // intentUrlのHTMLコンテキスト用エスケープ（noscriptタグ内で使用）
+  const intentHtmlEscaped = intentUrl
+    ? intentUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;')
+    : '';
 
   return `<!DOCTYPE html>
 <html><head>
@@ -214,14 +227,14 @@ function buildAppRedirectHtml(destinationUrl: string): string {
 <script>
 (function(){
   var isAndroid = /Android/i.test(navigator.userAgent);
-  if(isAndroid && "${intentEscaped}"){
-    window.location.href="${intentEscaped}";
+  if(isAndroid && ${intentJsonEscaped}){
+    window.location.href=${intentJsonEscaped};
   } else {
-    window.location.href="${escaped}";
+    window.location.href=${jsonEscaped};
   }
 })();
 </script>
-<noscript><meta http-equiv="refresh" content="0;url=${escaped}"></noscript>
+<noscript><meta http-equiv="refresh" content="0;url=${htmlEscaped}"></noscript>
 </body></html>`;
 }
 

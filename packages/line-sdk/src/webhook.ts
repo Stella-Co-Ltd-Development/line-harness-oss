@@ -38,5 +38,10 @@ export async function verifySignature(
 
   // Constant-time comparison is not strictly needed here because both strings
   // are base64 of the same length, but we avoid early-exit for safety.
-  return computedBase64 === signature;
+  if (computedBase64.length !== signature.length) return false;
+  let result = 0;
+  for (let i = 0; i < computedBase64.length; i++) {
+    result |= computedBase64.charCodeAt(i) ^ signature.charCodeAt(i);
+  }
+  return result === 0;
 }

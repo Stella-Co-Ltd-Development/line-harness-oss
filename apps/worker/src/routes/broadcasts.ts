@@ -11,6 +11,7 @@ import { LineClient } from '@line-crm/line-sdk';
 import { processBroadcastSend } from '../services/broadcast.js';
 import { processSegmentSend } from '../services/segment-send.js';
 import type { SegmentCondition } from '../services/segment-query.js';
+import { requireRole } from '../middleware/role-guard.js';
 import type { Env } from '../index.js';
 
 const broadcasts = new Hono<Env>();
@@ -75,7 +76,7 @@ broadcasts.get('/api/broadcasts/:id', async (c) => {
 });
 
 // POST /api/broadcasts - create
-broadcasts.post('/api/broadcasts', async (c) => {
+broadcasts.post('/api/broadcasts', requireRole('owner', 'admin'), async (c) => {
   try {
     const body = await c.req.json<{
       title: string;
@@ -130,7 +131,7 @@ broadcasts.post('/api/broadcasts', async (c) => {
 });
 
 // PUT /api/broadcasts/:id - update draft
-broadcasts.put('/api/broadcasts/:id', async (c) => {
+broadcasts.put('/api/broadcasts/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const existing = await getBroadcastById(c.env.DB, id);
@@ -176,7 +177,7 @@ broadcasts.put('/api/broadcasts/:id', async (c) => {
 });
 
 // DELETE /api/broadcasts/:id - delete
-broadcasts.delete('/api/broadcasts/:id', async (c) => {
+broadcasts.delete('/api/broadcasts/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     await deleteBroadcast(c.env.DB, id);
@@ -188,7 +189,7 @@ broadcasts.delete('/api/broadcasts/:id', async (c) => {
 });
 
 // POST /api/broadcasts/:id/send - send now
-broadcasts.post('/api/broadcasts/:id/send', async (c) => {
+broadcasts.post('/api/broadcasts/:id/send', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const existing = await getBroadcastById(c.env.DB, id);
@@ -220,7 +221,7 @@ broadcasts.post('/api/broadcasts/:id/send', async (c) => {
 });
 
 // POST /api/broadcasts/:id/send-segment - send to a filtered segment
-broadcasts.post('/api/broadcasts/:id/send-segment', async (c) => {
+broadcasts.post('/api/broadcasts/:id/send-segment', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const existing = await getBroadcastById(c.env.DB, id);
@@ -293,7 +294,7 @@ broadcasts.get('/api/broadcasts/:id/insight', async (c) => {
 });
 
 // POST /api/broadcasts/:id/fetch-insight — LINE APIからインサイトを即時取得
-broadcasts.post('/api/broadcasts/:id/fetch-insight', async (c) => {
+broadcasts.post('/api/broadcasts/:id/fetch-insight', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id');
     const broadcast = await getBroadcastById(c.env.DB, id);

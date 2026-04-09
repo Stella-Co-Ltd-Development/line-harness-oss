@@ -1,4 +1,5 @@
 import { extractFlexAltText } from '../utils/flex-alt-text.js';
+import { isUrlSafe } from '../utils/url-validator.js';
 
 /**
  * イベントバス — システム内イベントの発火と処理
@@ -116,6 +117,7 @@ async function fireOutgoingWebhooks(
           headers['X-Webhook-Signature'] = hexSignature;
         }
 
+        if (!isUrlSafe(wh.url)) { console.warn('Blocked SSRF attempt:', wh.url); continue; }
         await fetch(wh.url, { method: 'POST', headers, body });
       } catch (err) {
         console.error(`送信Webhook ${wh.id} への通知失敗:`, err);
@@ -286,6 +288,7 @@ async function executeAction(
 
     case 'send_webhook': {
       const url = action.params.url;
+      if (url && !isUrlSafe(url)) { throw new Error('Blocked: unsafe webhook URL'); }
       if (url) {
         await fetch(url, {
           method: 'POST',

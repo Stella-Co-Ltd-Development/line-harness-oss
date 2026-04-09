@@ -66,6 +66,11 @@ async function verifyStripeSignature(secret: string, rawBody: string, sigHeader:
   const expectedSig = parts.v1;
   if (!timestamp || !expectedSig) return false;
 
+  // リプレイ攻撃対策: タイムスタンプが現在時刻から5分以上ずれている場合は拒否
+  const ts = parseInt(timestamp, 10);
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - ts) > 300) return false;  // 5分以上古いリクエストを拒否
+
   const encoder = new TextEncoder();
   const signedPayload = `${timestamp}.${rawBody}`;
   const key = await crypto.subtle.importKey(
@@ -79,7 +84,12 @@ async function verifyStripeSignature(secret: string, rawBody: string, sigHeader:
   const computedSig = Array.from(new Uint8Array(sig))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
-  return computedSig === expectedSig;
+  if (computedSig.length !== expectedSig.length) return false;
+  let diff = 0;
+  for (let i = 0; i < computedSig.length; i++) {
+    diff |= computedSig.charCodeAt(i) ^ expectedSig.charCodeAt(i);
+  }
+  return diff === 0;
 }
 
 stripe.post('/api/integrations/stripe/webhook', async (c) => {
