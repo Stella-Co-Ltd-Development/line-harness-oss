@@ -97,20 +97,19 @@ stripe.post('/api/integrations/stripe/webhook', async (c) => {
     const stripeSecret = (c.env as unknown as Record<string, string | undefined>).STRIPE_WEBHOOK_SECRET;
     let body: StripeWebhookBody;
 
-    if (stripeSecret) {
-      // 署名検証モード（本番環境）
-      const sigHeader = c.req.header('Stripe-Signature') ?? '';
-      const rawBody = await c.req.text();
-
-      const valid = await verifyStripeSignature(stripeSecret, rawBody, sigHeader);
-      if (!valid) {
-        return c.json({ success: false, error: 'Stripe signature verification failed' }, 401);
-      }
-      body = JSON.parse(rawBody) as StripeWebhookBody;
-    } else {
-      // シークレット未設定（開発環境向け）
-      body = await c.req.json<StripeWebhookBody>();
+    if (!stripeSecret) {
+      return c.json({ success: false, error: 'STRIPE_WEBHOOK_SECRET is not configured' }, 503);
     }
+
+    // 署名検証モード
+    const sigHeader = c.req.header('Stripe-Signature') ?? '';
+    const rawBody = await c.req.text();
+
+    const valid = await verifyStripeSignature(stripeSecret, rawBody, sigHeader);
+    if (!valid) {
+      return c.json({ success: false, error: 'Stripe signature verification failed' }, 401);
+    }
+    body = JSON.parse(rawBody) as StripeWebhookBody;
 
     // 冪等性チェック
     const existing = await getStripeEventByStripeId(c.env.DB, body.id);

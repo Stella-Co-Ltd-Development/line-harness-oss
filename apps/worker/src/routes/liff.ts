@@ -1197,7 +1197,7 @@ function completionPage(displayName: string, pictureUrl: string | null, ref: str
     <div class="check">✓</div>
     <h2>登録完了！</h2>
     <div class="profile">
-      ${pictureUrl ? `<img src="${pictureUrl}" alt="">` : ''}
+      ${pictureUrl && pictureUrl.startsWith('https://') ? `<img src="${escapeHtml(pictureUrl)}" alt="">` : ''}
       <p class="name">${escapeHtml(displayName)} さん</p>
     </div>
     <p class="message">ありがとうございます！<br>これからお役立ち情報をお届けします。<br>このページは閉じて大丈夫です。</p>

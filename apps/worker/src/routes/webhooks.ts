@@ -147,11 +147,12 @@ webhooks.post('/api/webhooks/incoming/:id/receive', async (c) => {
     const wh = await getIncomingWebhookById(c.env.DB, id);
     if (!wh || !wh.is_active) return c.json({ success: false, error: 'Webhook not found or inactive' }, 404);
 
-    if (wh.secret) {
-      const provided = c.req.header('X-Webhook-Secret') ?? '';
-      if (!timingSafeEqual(provided, wh.secret)) {
-        return c.json({ success: false, error: 'Unauthorized' }, 401);
-      }
+    if (!wh.secret) {
+      return c.json({ success: false, error: 'Webhook secret is not configured. Set a secret to enable this endpoint.' }, 403);
+    }
+    const provided = c.req.header('X-Webhook-Secret') ?? '';
+    if (!await timingSafeEqual(provided, wh.secret)) {
+      return c.json({ success: false, error: 'Unauthorized' }, 401);
     }
 
     const body = await c.req.json();

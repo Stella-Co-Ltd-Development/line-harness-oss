@@ -94,6 +94,16 @@ trackedLinks.post('/api/tracked-links', async (c) => {
       return c.json({ success: false, error: 'name and originalUrl are required' }, 400);
     }
 
+    // Validate URL scheme to prevent open redirect to arbitrary protocols
+    try {
+      const parsed = new URL(body.originalUrl);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        return c.json({ success: false, error: 'originalUrl must use https or http protocol' }, 400);
+      }
+    } catch {
+      return c.json({ success: false, error: 'originalUrl is not a valid URL' }, 400);
+    }
+
     const link = await createTrackedLink(c.env.DB, {
       name: body.name,
       originalUrl: body.originalUrl,

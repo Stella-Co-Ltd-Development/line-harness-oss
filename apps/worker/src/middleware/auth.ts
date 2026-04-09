@@ -1,5 +1,6 @@
 import type { Context, Next } from 'hono';
 import { getStaffByApiKey } from '@line-crm/db';
+import { timingSafeEqual } from '../utils/timing-safe.js';
 import type { Env } from '../index.js';
 
 export async function authMiddleware(c: Context<Env>, next: Next): Promise<Response | void> {
@@ -42,8 +43,8 @@ export async function authMiddleware(c: Context<Env>, next: Next): Promise<Respo
     return next();
   }
 
-  // Fallback: env API_KEY acts as owner
-  if (token === c.env.API_KEY) {
+  // Fallback: env API_KEY acts as owner (timing-safe comparison)
+  if (await timingSafeEqual(token, c.env.API_KEY)) {
     c.set('staff', { id: 'env-owner', name: 'Owner', role: 'owner' as const });
     return next();
   }

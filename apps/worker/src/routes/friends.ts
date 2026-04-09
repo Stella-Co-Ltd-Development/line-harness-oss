@@ -75,6 +75,7 @@ friends.get('/api/friends', async (c) => {
     for (const [key, value] of url.searchParams.entries()) {
       if (key.startsWith('metadata.')) {
         const metaKey = key.slice('metadata.'.length);
+        if (!/^[a-zA-Z0-9_]+$/.test(metaKey)) continue;
         conditions.push(`json_extract(f.metadata, '$.' || ?) = ?`);
         binds.push(metaKey, value);
       }

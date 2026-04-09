@@ -2,11 +2,23 @@ import { Hono } from 'hono';
 import type { Env } from '../index.js';
 import { getFriendByLineUserId } from '@line-crm/db';
 import { LineClient } from '@line-crm/line-sdk';
+import { timingSafeEqual } from '../utils/timing-safe.js';
 
 const app = new Hono<Env>();
 
 // Meet Harness calls this when a hearing session completes
 app.post('/api/meet-callback', async (c) => {
+  // Auth check BEFORE body parsing
+  const meetSecret = (c.env as unknown as Record<string, string | undefined>).MEET_CALLBACK_SECRET;
+  if (!meetSecret) {
+    return c.json({ success: false, error: 'MEET_CALLBACK_SECRET is not configured' }, 503);
+  }
+  const authHeader = c.req.header('Authorization') ?? '';
+  const expected = `Bearer ${meetSecret}`;
+  if (!await timingSafeEqual(authHeader, expected)) {
+    return c.json({ success: false, error: 'Unauthorized' }, 401);
+  }
+
   const body = await c.req.json<{
     session_id: string;
     scenario_id: string;
@@ -20,14 +32,6 @@ app.post('/api/meet-callback', async (c) => {
     requirements_doc?: string;
     completed_at: string;
   }>();
-
-  const meetSecret = (c.env as unknown as Record<string, string | undefined>).MEET_CALLBACK_SECRET;
-  if (meetSecret) {
-    const authHeader = c.req.header('Authorization') ?? '';
-    if (authHeader !== `Bearer ${meetSecret}`) {
-      return c.json({ success: false, error: 'Unauthorized' }, 401);
-    }
-  }
 
   if (!body.line_user_id) {
     return c.json({ success: false, error: 'line_user_id required' }, 400);

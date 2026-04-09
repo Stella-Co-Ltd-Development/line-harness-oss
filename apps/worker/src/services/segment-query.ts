@@ -46,6 +46,7 @@ export function buildSegmentQuery(condition: SegmentCondition): { sql: string; b
           throw new Error('metadata_equals rule requires { key: string; value: string }')
         }
         const mv = rule.value as { key: string; value: string }
+        if (!/^[a-zA-Z0-9_]+$/.test(mv.key)) throw new Error('metadata key must be alphanumeric/underscore only')
         clauses.push(`json_extract(f.metadata, ?) = ?`)
         bindings.push(`$.${mv.key}`, mv.value)
         break
@@ -61,6 +62,7 @@ export function buildSegmentQuery(condition: SegmentCondition): { sql: string; b
           throw new Error('metadata_not_equals rule requires { key: string; value: string }')
         }
         const mv = rule.value as { key: string; value: string }
+        if (!/^[a-zA-Z0-9_]+$/.test(mv.key)) throw new Error('metadata key must be alphanumeric/underscore only')
         clauses.push(`(json_extract(f.metadata, ?) IS NULL OR json_extract(f.metadata, ?) != ?)`)
         bindings.push(`$.${mv.key}`, `$.${mv.key}`, mv.value)
         break

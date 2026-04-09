@@ -75,13 +75,15 @@ app.use('*', async (c, next) => {
   c.res.headers.set('X-Frame-Options', 'DENY');
   c.res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   c.res.headers.set('X-XSS-Protection', '1; mode=block');
+  c.res.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  c.res.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; frame-ancestors 'none'");
 });
 
-// CORS — allow all origins for MVP
+// CORS — deny by default when ALLOWED_ORIGINS is not configured
 app.use('*', cors({
   origin: (origin, c) => {
     const allowed = (c.env as any).ALLOWED_ORIGINS?.split(',').map((s: string) => s.trim()).filter(Boolean);
-    if (!allowed?.length) return origin;
+    if (!allowed?.length) return '';
     return allowed.includes(origin) ? origin : '';
   },
 }));
